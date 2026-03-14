@@ -11,6 +11,8 @@ const PromptBuilder = require('../src/prompt-builder');
 const History       = require('../src/history');
 // mcp: lazy loaded when 'vibetrace mcp' is called
 const Scanner  = require('../src/scanner');
+const { startDaemon, stopDaemon, daemonStatus } = require('../src/daemon');
+const { setupHooks, removeHooks, autoSetup }    = require('../src/hooks');
 const Hotspot  = require('../src/hotspot');
 const Watcher  = require('../src/watcher');
 const { setupWrapper } = require('../src/shell-wrapper');
@@ -94,6 +96,43 @@ async function main() {
     // growth tracker에 기록
     const growth = new GrowthTracker(cwd);
     growth.recordAI(filePath, result.changedLines);
+
+    // Intent Mismatch + HIGH risk 처리
+    if (result.risk.level === 'HIGH') {
+      const storage  = require('../src/storage');
+      const intentLog = storage.load(cwd, 'intent-mismatches') || [];
+      const lastIntent = storage.load(cwd, 'history');
+      const currentIntent = lastIntent?.slice(-1)[0]?.step || null;
+
+      // 의도한 파일인지 판단
+      const relFile   = result.file.toLowerCase();
+      const isIntended = currentIntent
+        ? currentIntent.toLowerCase().split(' ').some(kw =>
+            kw.length > 3 && relFile.includes(kw)
+          )
+        : false;
+
+      const C = logger.C;
+
+      if (!isIntended && currentIntent) {
+        // 의도하지 않은 HIGH → 사용자 보고 필요
+        logger.always('\n' + C.RED + '═'.repeat(56) + C.RESET);
+        logger.always(C.BOLD + C.RED + '  ⚠  VIBETRACE_CONFIRM_REQUIRED' + C.RESET);
+        logger.always(C.RED + '═'.repeat(56) + C.RESET);
+        logger.always('  Intent  : "' + currentIntent + '"');
+        logger.always('  Modified: ' + result.file + '  [HIGH]');
+        logger.always(C.RED + '  → This file was not part of the intended change.' + C.RESET);
+        logger.always(C.YELLOW + '  → Recommended: ask user before proceeding.' + C.RESET);
+        logger.always(C.RED + '═'.repeat(56) + C.RESET + '\n');
+
+        // AI 환경에서 인식할 수 있게 exit 1
+        if (!jsonFlag) process.exit(1);
+      } else {
+        // 의도한 HIGH → 경고만
+        logger.always('\n  ' + C.YELLOW + '⚠  HIGH risk but matches intent — proceeding' + C.RESET);
+        logger.always('  ' + C.GRAY + 'Run "vibetrace impact ' + filePath + '" to check affected modules' + C.RESET + '\n');
+      }
+    }
 
   // ── impact ────────────────────────────────────────────
   } else if (command === 'impact') {
@@ -206,6 +245,26 @@ async function main() {
     const port = parseInt(args.find(a => a.startsWith('--port='))?.split('=')[1] || '3741');
     startServer(port, cwd);
 
+  // ── daemon ───────────────────────────────────────────
+  } else if (command === 'daemon') {
+    const sub = args[1];
+    if (sub === 'stop')        stopDaemon();
+    else if (sub === 'status') daemonStatus();
+    else                       startDaemon(cwd);
+
+  // ── setup-hooks ───────────────────────────────────────
+  } else if (command === 'setup-hooks') {
+    setupHooks(cwd);
+
+  // ── remove-hooks ──────────────────────────────────────
+  } else if (command === 'remove-hooks') {
+    removeHooks(cwd);
+
+  // ── auto-setup ────────────────────────────────────────
+  // npm postinstall 자동 실행용
+  } else if (command === 'auto-setup') {
+    autoSetup(cwd);
+
   // ── scan ─────────────────────────────────────────────
   } else if (command === 'scan') {
     const scanner = new Scanner(cwd);
@@ -222,13 +281,22 @@ async function main() {
 
   // ── watch ─────────────────────────────────────────────
   } else if (command === 'watch') {
-    const intent  = args.find(a => a.startsWith('--intent='))?.split('=').slice(1).join('=');
-    const watcher = new Watcher(cwd);
-    if (intent) watcher.setIntent(intent);
-    watcher.start();
-    process.on('SIGINT', () => { watcher.stop(); process.exit(0); });
-    // keep alive
-    setInterval(() => {}, 1000);
+    const intent      = args.find(a => a.startsWith('--intent='))?.split('=').slice(1).join('=');
+    const daemonMode  = args.includes('--daemon');
+    const workerMode  = args.includes('--daemon-worker');
+
+    if (daemonMode) {
+      // 백그라운드 데몬으로 실행
+      startDaemon(cwd);
+    } else {
+      const watchCwd = workerMode ? (process.env.VIBETRACE_CWD || cwd) : cwd;
+      const watcher  = new Watcher(watchCwd);
+      if (intent) watcher.setIntent(intent);
+      watcher.start();
+      process.on('SIGINT', () => { watcher.stop(); process.exit(0); });
+      process.on('SIGTERM', () => { watcher.stop(); process.exit(0); });
+      setInterval(() => {}, 1000);
+    }
 
   // ── setup-wrapper ─────────────────────────────────────
   } else if (command === 'setup-wrapper') {

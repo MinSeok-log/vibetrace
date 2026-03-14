@@ -15,7 +15,9 @@
     "prompt": "vibetrace prompt",
     "growth": "vibetrace growth",
     "history": "vibetrace history",
-    "guard": "vibetrace cmdlog"
+    "guard": "vibetrace cmdlog",
+    "postinstall": "node ./bin/vibetrace.js auto-setup || true",
+    "watch:daemon": "vibetrace watch --daemon"
   },
   "keywords": [
     "vibe-coding",
@@ -36,7 +38,6 @@
     "type": "git",
     "url": "https://github.com/MinSeok-log/vibetrace.git"
   },
-  "homepage": "https://minseok-log.github.io/vibetrace/",
   "engines": {
     "node": ">=16.0.0"
   },
