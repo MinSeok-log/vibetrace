@@ -1,0 +1,45 @@
+{
+  "name": "vibetrace",
+  "version": "0.1.0",
+  "description": "AI code change monitor. Runtime analysis, debug tracing, risk scoring for the vibe coding era.",
+  "main": "src/tracer.js",
+  "bin": {
+    "vibetrace": "./bin/vibetrace.js"
+  },
+  "scripts": {
+    "scan": "vibetrace scan",
+    "hotspot": "vibetrace hotspot",
+    "watch": "vibetrace watch",
+    "trace": "vibetrace score",
+    "diff": "vibetrace diff",
+    "prompt": "vibetrace prompt",
+    "growth": "vibetrace growth",
+    "history": "vibetrace history",
+    "guard": "vibetrace cmdlog"
+  },
+  "keywords": [
+    "vibe-coding",
+    "ai",
+    "runtime-analysis",
+    "debug",
+    "code-review",
+    "ai-agent",
+    "mcp",
+    "risk-scoring",
+    "diff-tracker",
+    "developer-tools"
+  ],
+  "author": "minseok-log",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MinSeok-log/vibetrace.git"
+  },
+  "homepage": "https://minseok-log.github.io/vibetrace/",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0"
+  }
+}
